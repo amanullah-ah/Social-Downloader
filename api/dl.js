@@ -1,4 +1,3 @@
-
 // Secure proxy: real API URL/key live only in Vercel Environment Variables.
 // Env vars: UPSTREAM_URL (required), UPSTREAM_KEY (optional), ALLOWED_ORIGINS (optional, comma-separated hosts)
 
@@ -10,6 +9,33 @@ const ALLOWED_SITES = [
   'tiktok.com', 'youtube.com', 'youtu.be', 'facebook.com', 'fb.watch',
   'instagram.com', 'pinterest.com', 'pin.it'
 ];
+
+const SHORTENERS = ['is.gd', 'v.gd', 'tinyurl.com', 'bit.ly', 'cutt.ly', 'rb.gy', 't.ly'];
+
+// Follow short-link redirects on the server so the browser never has to open them
+async function expand(u) {
+  try {
+    let cur = u;
+    for (let i = 0; i < 4; i++) {
+      const h = new URL(cur).hostname.replace(/^www\./, '').toLowerCase();
+      if (!SHORTENERS.includes(h)) return cur;
+      const r = await fetch(cur, { redirect: 'manual', signal: AbortSignal.timeout(4000) });
+      const loc = r.headers.get('location');
+      if (!loc) return cur;
+      cur = new URL(loc, cur).toString();
+    }
+    return cur;
+  } catch { return u; }
+}
+
+async function expandAll(data) {
+  const d = data && (data.data || data);
+  const list = d && (d.medias || d.formats);
+  if (!Array.isArray(list)) return;
+  await Promise.all(list.map(async it => {
+    if (it && typeof it.url === 'string') it.url = await expand(it.url);
+  }));
+}
 
 function hostOf(v) {
   try { return new URL(v).host; } catch { return ''; }
@@ -64,6 +90,7 @@ module.exports = async (req, res) => {
       signal: AbortSignal.timeout(25000)
     });
     const data = await r.json();
+    if (r.ok) await expandAll(data);
     return res.status(r.ok ? 200 : r.status).json(data);
   } catch (e) {
     return res.status(502).json({ message: 'Upstream error. Please try again.' });
