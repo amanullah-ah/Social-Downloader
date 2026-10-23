@@ -56,11 +56,23 @@ module.exports = async (req, res) => {
     return res.status(400).json({ message: 'Invalid file URL' });
   }
 
+  // YouTube (googlevideo) blocks datacenter IPs like Vercel's, so send the user's own
+  // browser straight to the CDN instead of proxying it through the server.
+  try {
+    const th = new URL(target).hostname.toLowerCase();
+    if (th === 'googlevideo.com' || th.endsWith('.googlevideo.com')) {
+      res.statusCode = 302;
+      res.setHeader('Location', target);
+      return res.end();
+    }
+  } catch {}
+
   try {
     const h = { 'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' };
     if (req.headers.range) h.Range = req.headers.range;
 
     const up = await fetch(target, { headers: h, redirect: 'follow', signal: AbortSignal.timeout(55000) });
+    if (up.status === 403) { res.statusCode = 302; res.setHeader('Location', target); return res.end(); }
     if (!up.ok && up.status !== 206) return res.status(502).json({ message: 'Source refused the file (' + up.status + ')' });
 
     let ct = (up.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
