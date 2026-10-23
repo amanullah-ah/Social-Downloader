@@ -602,7 +602,8 @@
                         ev.preventDefault();
                         const href = this.qLink.href;
                         try {
-                            const r = await fetch(href, { headers: { Range: 'bytes=0-1' } });
+                            const r = await fetch(href, { headers: { Range: 'bytes=0-1' }, redirect: 'manual' });
+                            if (r.type === 'opaqueredirect') { this._dlOk = href; this.qLink.click(); return; }
                             const ct = (r.headers.get('content-type') || '');
                             if (!r.ok && r.status !== 206) {
                                 let m = 'Download failed (' + r.status + ')';
@@ -750,4 +751,4 @@
 
     </script>
 </body>
-                                 </html>
+    </html>
