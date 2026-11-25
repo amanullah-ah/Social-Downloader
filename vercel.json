@@ -1,0 +1,3 @@
+{
+  "functions": { "api/file.js": { "maxDuration": 60 } }
+}
